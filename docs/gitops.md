@@ -42,3 +42,28 @@ TCP port on the VM.
   something actually needs a credential (the exe.dev edge injects most service
   credentials, so nothing needs one today).
 - Keep images pinned by digest if you want reproducible rollouts.
+
+## Bootstrapping vs. reconciling
+
+| Step | Who does it | How often |
+| --- | --- | --- |
+| install k3s, write kubeconfig | human (`bootstrap/bootstrap.sh`) | once per VM |
+| apply `gotk-components.yaml` + `gotk-sync.yaml` | human, then Flux | once, then Flux keeps them reconciled |
+| Traefik `hostPort`, namespaces, workloads | Flux (`kustomize-controller`) | every 1m git poll / 10m Kustomization interval |
+| Flux upgrades | git commit of `clusters/exe/flux-system/gotk-components.yaml` (`flux install --export`) | as needed |
+
+Kubernetes objects are applied with server-side apply. Anything committed under
+`clusters/exe`, `infrastructure/`, `apps/` that disappears from git is pruned; the
+`apps` Kustomization additionally `dependsOn` `infrastructure` and `wait: true`, so a
+broken deployment shows up as a not-ready Kustomization instead of silently rolling on.
+
+### Health checks and stuck reconciles
+
+`wait: true` means a Kustomization waits for workloads to become ready (default 10m).
+If you push a manifest that will never become ready, the reconcile stays `Unknown`
+and blocks dependents until the timeout. Fix forward (revert in git), or clear it:
+
+```bash
+flux reconcile kustomization apps --with-source   # retry now
+flux suspend kustomization apps                   # stop trying, then resume
+```

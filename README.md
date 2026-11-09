@@ -16,6 +16,7 @@ Flux kustomize-controller ────┘  continually reconciles clusters/exe f
 ## Repo layout
 
 ```
+Makefile                   bootstrap / status / reconcile / teardown helpers
 bootstrap/                 how a bare VM becomes this cluster (run once, by hand)
 clusters/exe/              Flux sync root for the "exe" cluster (GitRepository + Kustomizations)
   flux-system/             Flux controllers + sync manifests
@@ -31,20 +32,13 @@ docs/gitops.md             notes on how reconciliation works
 ## Bootstrap a fresh VM
 
 ```bash
-# 1. install k3s (Traefik + ServiceLB + local-path come with it)
-sudo INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644" sh bootstrap/install-k3s.sh
-
-# 2. put the kubeconfig somewhere kubectl finds it
-mkdir -p ~/.kube && sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown $USER ~/.kube/config
-
-# 3. install the Flux controllers + sync objects (one-time seed; Flux owns itself afterwards)
-kubectl apply -f clusters/exe/flux-system/gotk-components.yaml
-kubectl apply -f clusters/exe/flux-system/gotk-sync.yaml
-
-# 4. watch it converge
-flux get kustomizations --watch
-kubectl -n hello get pods
+./bootstrap/bootstrap.sh          # k3s + kubeconfig + Flux seed, idempotent
+flux get kustomizations --watch   # watch git take over
+make status
 ```
+
+See [bootstrap/README.md](bootstrap/README.md) for the individual steps and why
+`bootstrap.sh` overrides k3s's default pod/service CIDRs.
 
 After step 3 everything else — namespaces, workloads, the Traefik wiring — is applied by Flux from git.
 To change the cluster, open a PR against this repo; to force a reconcile, `flux reconcile kustomization flux-system --with-source`.
@@ -55,6 +49,11 @@ Expose port `8000` (Traefik's `web` entrypoint) as the VM's default proxy port, 
 
 ```
 https://curling-lathe.exe.xyz/           # the hello world app (private to VM users by default)
+http://localhost:8000/                   # same thing, straight to Traefik from the VM
 ```
+
+The VM's exe.dev proxy port is `8000`; Traefik binds it as a `hostPort` and routes by
+Ingress. Both the edge proxy and ServiceLB (node :80/:443) hit the same Traefik, so
+the app stays reachable if the proxy target ever changes.
 
 Other ports in 3000-9999 are proxied as well, e.g. `https://curling-lathe.exe.xyz:8080/`.

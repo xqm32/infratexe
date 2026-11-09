@@ -15,11 +15,32 @@ cluster can be rebuilt even if upstream moves. k3s default components are kept:
 CoreDNS, Traefik (ingress), ServiceLB (klipper, binds node :80/:443), local-path
 storage, metrics-server.
 
+**Non-default CIDRs are mandatory on exe.dev.** The VM's own network is
+`10.42.0.0/16` (VM `10.42.0.x`, default gateway `10.42.0.1`) and k3s's default pod
+network is the same range. Installing with defaults gives `cni0` the address
+`10.42.0.1`, which shadows the VM's default gateway and black-holes egress:
+
+```
+default via 10.42.0.1 dev eth0
+10.42.0.0/24 dev cni0 proto kernel scope link src 10.42.0.1   # <-- gateway stolen
+10.42.0.0/16 dev eth0 proto kernel scope link src 10.42.0.42
+```
+
+So:
+
 ```bash
-sudo INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644" sh bootstrap/install-k3s.sh
+sudo INSTALL_K3S_EXEC="server \
+  --write-kubeconfig-mode=644 \
+  --cluster-cidr=10.52.0.0/16 \
+  --service-cidr=10.53.0.0/16 \
+  --cluster-dns=10.53.0.10" \
+  sh bootstrap/install-k3s.sh
 mkdir -p ~/.kube && sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown $USER ~/.kube/config
 kubectl get nodes
+ip route   # cni0 must NOT be 10.42.0.1
 ```
+
+`bootstrap/bootstrap.sh` does all of the above (and the Flux seed) in one go.
 
 > Note: on a brand-new k3s the `helm-install-traefik` job can fail once because the
 > Traefik CRD chart has not registered its CRDs yet. It retries and succeeds; no action needed.
