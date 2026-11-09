@@ -30,9 +30,7 @@ spec:
             httpGet:
               path: /
               port: http
+          # nginxdemos/hello is an upstream image that runs as root and binds :80;
+          # don't fight it in a hello-world demo. Use a non-root image if that matters.
           securityContext:
             allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 101
-            capabilities:
-              drop: ["ALL"]
