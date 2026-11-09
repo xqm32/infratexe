@@ -67,3 +67,12 @@ and blocks dependents until the timeout. Fix forward (revert in git), or clear i
 flux reconcile kustomization apps --with-source   # retry now
 flux suspend kustomization apps                   # stop trying, then resume
 ```
+
+### Note on `dependsOn` and revisions
+
+`apps` declares `dependsOn: infrastructure` without a `readyExpr`, so Flux also requires
+the dependency to have *applied the same revision* before `apps` reconciles. A commit
+that only touches `apps/` therefore waits for `infrastructure`'s next interval (10m) or
+a manual `flux reconcile kustomization infrastructure`. That is intentional ordering
+(infra changes land first), but it is why a single-file app change can look "stuck"
+for a few minutes. `flux reconcile kustomization apps --with-source` clears it.
