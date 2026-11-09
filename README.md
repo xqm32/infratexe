@@ -57,3 +57,39 @@ Ingress. Both the edge proxy and ServiceLB (node :80/:443) hit the same Traefik,
 the app stays reachable if the proxy target ever changes.
 
 Other ports in 3000-9999 are proxied as well, e.g. `https://curling-lathe.exe.xyz:8080/`.
+
+## Verify
+
+```bash
+$ kubectl get nodes
+NAME            STATUS   ROLES           AGE   VERSION
+curling-lathe   Ready    control-plane   20m   v1.37.2+k3s1
+
+$ flux get kustomizations
+NAME             REVISION            READY   MESSAGE
+apps             main@sha1:e8691a4e  True    Applied revision: main@sha1:e8691a4e
+flux-system      main@sha1:e8691a4e  True    Applied revision: main@sha1:e8691a4e
+infrastructure   main@sha1:e8691a4e  True    Applied revision: main@sha1:e8691a4e
+
+$ curl -s localhost:8000/
+Server address: 10.52.0.18:80
+Server name: hello-5dc54b477d-mwzgg
+```
+
+The git -> cluster loop was verified by editing `replicas` in
+`apps/hello/deployment.yaml`, pushing, and watching a third pod appear with no
+`kubectl` involved.
+
+From outside the VM the exe.dev proxy answers `307` to `https://curling-lathe.exe.xyz/`
+until you log in with your exe.dev account (the proxy is private by default). To make
+the hello world public: `ssh exe.dev share set-public curling-lathe`
+(and `share set-private` to undo).
+
+## Operating notes
+
+- k3s and Flux both run as systemd units and restart with the VM; Flux re-syncs git on
+  every controller start, so a reboot converges back to whatever `main` says.
+- kubeconfig for humans lives at `~/.kube/config` (copied from `/etc/rancher/k3s/k3s.yaml`).
+- `make status` / `make reconcile` / `make teardown` for the daily drivers.
+- Nothing in git is a secret, and nothing needs to be: exe.dev injects service
+  credentials at the network edge (`https://reflection.int.exe.xyz/integrations`).
