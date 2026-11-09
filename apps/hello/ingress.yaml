@@ -1,0 +1,20 @@
+# Catch-all rule: exe.dev's proxy forwards the public host (curling-lathe.exe.xyz)
+# to Traefik, so no host match is needed. Add `host:` later if you want vhost routing.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello
+  labels:
+    app.kubernetes.io/name: hello
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello
+                port:
+                  number: 80

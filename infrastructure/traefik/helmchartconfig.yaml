@@ -1,0 +1,13 @@
+# k3s ships Traefik as a HelmChart in kube-system; HelmChartConfig patches its values.
+# exe.dev's edge proxy forwards to the VM's default port 8000, so bind Traefik's
+# "web" entrypoint to that host port. ServiceLB keeps owning node :80/:443.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      web:
+        hostPort: 8000
